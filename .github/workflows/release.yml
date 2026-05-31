@@ -83,6 +83,6 @@ jobs:
             | macOS Apple Silicon | `_aarch64.dmg` |
             | macOS Intel | `_x64.dmg` |
             | Linux | `.AppImage` or `.deb` |
-          releaseDraft: true
+          releaseDraft: false
           prerelease: false
           args: ${{ matrix.args }}
