@@ -1,11 +1,10 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { get } from 'svelte/store';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import { LogicalSize } from '@tauri-apps/api/dpi';
-  import { localTasks, timerState, settings, persistTimerState, minimal, view, setError } from './store.js';
-  import { api } from './api.js';
-  import { fmtClock, liveSessionMs } from './time.js';
+  import { localTasks, timerState, minimal, view, setError } from './store.js';
+  import { pauseTimer, startTask } from './timer-controller.js';
+  import { fmtClock, fmtShort, liveSessionMs, totalTodayMs } from './time.js';
 
   let now = Date.now();
   let ticker = null;
@@ -26,6 +25,7 @@
   $: sessionMs = (now, liveSessionMs($timerState));
   $: activeTask = $localTasks.find(t => t.id === $timerState.activeTaskId) || null;
   $: isRunning = $timerState.status === 'running';
+  $: todayMs = (now, totalTodayMs($localTasks, $timerState));
 
   onMount(() => {
     if (isRunning) startTicker();
@@ -47,42 +47,12 @@
   }
 
   async function startActive() {
-    const { apiToken, baseUrl } = get(settings);
-    if (!apiToken) { setError('Add API token first.'); return; }
     if (!$timerState.activeTaskId) { setError('Pick a task in the full view.'); return; }
-    try {
-      const res = await api.startTimer(apiToken, baseUrl);
-      const startTime = res?.payload?.startTime || new Date().toISOString();
-      await persistTimerState({
-        ...$timerState,
-        status: 'running',
-        startTime,
-      });
-    } catch (e) {
-      setError(e?.message || String(e));
-    }
+    await startTask($timerState.activeTaskId);
   }
 
   async function pauseActive() {
-    const { apiToken, baseUrl } = get(settings);
-    const ts = $timerState;
-    if (ts.status !== 'running') return;
-    try {
-      const live = ts.startTime ? Date.now() - new Date(ts.startTime).getTime() : 0;
-      let duration = live;
-      try {
-        const res = await api.stopTimer(apiToken, baseUrl);
-        duration = res?.payload?.duration ?? live;
-      } catch {}
-      await persistTimerState({
-        ...ts,
-        status: 'paused',
-        startTime: null,
-        accumulatedMs: (ts.accumulatedMs || 0) + duration,
-      });
-    } catch (e) {
-      setError(e?.message || String(e));
-    }
+    await pauseTimer();
   }
 
   function togglePlay() {
@@ -99,6 +69,7 @@
   <span class="task-text" data-tauri-drag-region>
     {#if activeTask}{activeTask.text}{:else}No task{/if}
   </span>
+  <span class="today-total" data-tauri-drag-region>Today {fmtShort(todayMs)}</span>
   <div class="ctrls">
     {#if activeTask}
       <button
@@ -173,6 +144,14 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .today-total {
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 
   .ctrls {

@@ -3,8 +3,8 @@
   import { get } from 'svelte/store';
   import { listen } from '@tauri-apps/api/event';
   import { invoke } from '@tauri-apps/api/core';
-  import { view, settings, timerState, minimal, initStore, persistTimerState } from './lib/store.js';
-  import { api } from './lib/api.js';
+  import { view, settings, timerState, minimal, initStore } from './lib/store.js';
+  import { reconcileTimer } from './lib/timer-controller.js';
   import TitleBar from './lib/TitleBar.svelte';
   import Timer from './lib/Timer.svelte';
   import TaskList from './lib/TaskList.svelte';
@@ -17,17 +17,10 @@
     await initStore();
 
     const { apiToken, baseUrl } = get(settings);
-    if (!apiToken) {
+    if (!apiToken || !baseUrl) {
       view.set('onboarding');
-    } else {
-      const ts = get(timerState);
-      if (ts.status === 'running') {
-        try {
-          await api.getTimer(apiToken, baseUrl);
-        } catch {
-          await persistTimerState({ ...ts, status: 'paused', startTime: null });
-        }
-      }
+    } else if (get(timerState).status === 'running') {
+      await reconcileTimer();
     }
 
     const unlisten = await listen('open-settings', () => {

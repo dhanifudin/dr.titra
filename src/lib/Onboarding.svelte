@@ -2,18 +2,17 @@
   import { get } from 'svelte/store';
   import { open } from '@tauri-apps/plugin-shell';
   import { settings, persistSettings, projects, view } from './store.js';
-  import { api } from './api.js';
+  import { api, normalizeBaseUrl } from './api.js';
 
   let token = '';
-  let baseUrl = 'https://titra.nusaraya.co.id';
-  let showAdvanced = false;
+  let baseUrl = '';
   let connecting = false;
   let error = '';
 
   async function openTokenPage() {
-    const url = (baseUrl.trim() || 'https://titra.nusaraya.co.id').replace(/\/$/, '');
     try {
-      await open(`${url}/profilesettings`);
+      const url = normalizeBaseUrl(baseUrl);
+      await open(`${url}/settings`);
     } catch (e) {
       error = `Could not open browser: ${e?.message || String(e)}`;
     }
@@ -21,10 +20,11 @@
 
   async function connect() {
     error = '';
+    if (!baseUrl.trim()) { error = 'Enter your Titra server URL first.'; return; }
     if (!token.trim()) { error = 'Paste your API token first.'; return; }
     connecting = true;
     try {
-      const cleanUrl = (baseUrl.trim() || 'https://titra.nusaraya.co.id').replace(/\/$/, '');
+      const cleanUrl = normalizeBaseUrl(baseUrl);
       const res = await api.listProjects(token.trim(), cleanUrl);
       const list = res.payload || [];
       projects.set(list);
@@ -57,17 +57,34 @@
     <div class="step">
       <div class="step-num">1</div>
       <div class="step-body">
-        <p class="step-label">Open titra and copy your API token</p>
-        <button class="token-link" on:click={openTokenPage}>
-          <span class="token-link-text">Open titra → Profile Settings</span>
-          <span class="token-link-ext">↗</span>
-        </button>
-        <p class="step-hint">Go to Profile → API Tokens and copy the token.</p>
+        <label class="step-label" for="baseurl">Enter your Titra server URL</label>
+        <input
+          id="baseurl"
+          type="url"
+          bind:value={baseUrl}
+          placeholder="https://your-titra-server.example"
+          on:keydown={handleKeydown}
+          autocomplete="url"
+          spellcheck="false"
+        />
+        <p class="step-hint">Use your company or self-hosted Titra address.</p>
       </div>
     </div>
 
     <div class="step">
       <div class="step-num">2</div>
+      <div class="step-body">
+        <p class="step-label">Open your Titra server and copy your API token</p>
+        <button class="token-link" on:click={openTokenPage}>
+          <span class="token-link-text">Open titra settings</span>
+          <span class="token-link-ext">↗</span>
+        </button>
+        <p class="step-hint">After the settings page opens, go to Integrations, choose titra, then click Generate to create the required token.</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-num">3</div>
       <div class="step-body">
         <p class="step-label">Paste your API token below</p>
         <input
@@ -89,7 +106,7 @@
   <button
     class="btn-connect"
     on:click={connect}
-    disabled={connecting || !token.trim()}
+    disabled={connecting || !baseUrl.trim() || !token.trim()}
   >
     {#if connecting}
       <span class="spinner"></span> Connecting…
@@ -98,26 +115,6 @@
     {/if}
   </button>
 
-  <button
-    class="advanced-toggle"
-    on:click={() => showAdvanced = !showAdvanced}
-    type="button"
-  >
-    {showAdvanced ? '▾' : '▸'} Using a self-hosted server?
-  </button>
-
-  {#if showAdvanced}
-    <div class="advanced">
-      <label for="baseurl">Server URL</label>
-      <input
-        id="baseurl"
-        type="url"
-        bind:value={baseUrl}
-        placeholder="https://titra.nusaraya.co.id"
-        on:keydown={handleKeydown}
-      />
-    </div>
-  {/if}
 </div>
 
 <style>
@@ -283,36 +280,5 @@
 
   @keyframes spin {
     to { transform: rotate(360deg); }
-  }
-
-  .advanced-toggle {
-    background: transparent;
-    color: var(--text-dim);
-    font-size: 11px;
-    font-weight: 600;
-    text-align: left;
-    padding: 2px 4px;
-    border-radius: 4px;
-    align-self: flex-start;
-  }
-
-  .advanced-toggle:hover:not(:disabled) {
-    background: var(--surface);
-    color: var(--text);
-    opacity: 1;
-  }
-
-  .advanced {
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-  }
-
-  .advanced label {
-    font-size: 11px;
-    font-weight: 600;
-    color: var(--text-dim);
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
   }
 </style>

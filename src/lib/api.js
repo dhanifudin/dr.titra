@@ -1,9 +1,21 @@
 import { fetch } from '@tauri-apps/plugin-http';
 
-const DEFAULT_BASE_URL = 'https://titra.nusaraya.co.id';
+export function normalizeBaseUrl(baseUrl) {
+  const value = baseUrl.trim().replace(/\/$/, '');
+
+  if (!value) {
+    throw new Error('Configure your Titra server URL first.');
+  }
+
+  try {
+    return new URL(value).toString().replace(/\/$/, '');
+  } catch {
+    throw new Error('Enter a valid Titra server URL.');
+  }
+}
 
 async function request(token, baseUrl, method, path, body = null) {
-  const url = `${baseUrl || DEFAULT_BASE_URL}${path}`;
+  const url = `${normalizeBaseUrl(baseUrl)}${path}`;
   const res = await fetch(url, {
     method,
     headers: {

@@ -1,11 +1,11 @@
-import { writable, get } from 'svelte/store';
+import { writable } from 'svelte/store';
 import { LazyStore } from '@tauri-apps/plugin-store';
 
 const persist = new LazyStore('dr-titra.json');
 
 export const settings = writable({
   apiToken: '',
-  baseUrl: 'https://titra.nusaraya.co.id',
+  baseUrl: '',
   theme: 'dark',
 });
 
@@ -28,6 +28,15 @@ export const minimal = writable(false);
 
 let errorTimer = null;
 
+function logTimerState(event, state) {
+  console.debug(`[timer] ${event}`, {
+    status: state.status,
+    activeTaskId: state.activeTaskId,
+    startTime: state.startTime,
+    accumulatedMs: state.accumulatedMs,
+  });
+}
+
 export function setError(msg) {
   errorMsg.set(msg);
   if (errorTimer) clearTimeout(errorTimer);
@@ -48,12 +57,66 @@ function normalizeTask(t) {
   };
 }
 
+export function normalizeTimerState(ts) {
+  if (ts.status === 'running') {
+    if (!ts.activeTaskId) {
+      return {
+        status: 'stopped',
+        startTime: null,
+        accumulatedMs: 0,
+        activeTaskId: null,
+      };
+    }
+
+    if (!ts.startTime) {
+      return {
+        status: 'paused',
+        startTime: null,
+        accumulatedMs: ts.accumulatedMs || 0,
+        activeTaskId: ts.activeTaskId,
+      };
+    }
+
+    return {
+      status: 'running',
+      startTime: ts.startTime,
+      accumulatedMs: ts.accumulatedMs || 0,
+      activeTaskId: ts.activeTaskId,
+    };
+  }
+
+  if (ts.status === 'paused') {
+    if (!ts.activeTaskId) {
+      return {
+        status: 'stopped',
+        startTime: null,
+        accumulatedMs: 0,
+        activeTaskId: null,
+      };
+    }
+
+    return {
+      status: 'paused',
+      startTime: null,
+      accumulatedMs: ts.accumulatedMs || 0,
+      activeTaskId: ts.activeTaskId,
+    };
+  }
+
+  return {
+    status: 'stopped',
+    startTime: null,
+    accumulatedMs: 0,
+    activeTaskId: null,
+  };
+}
+
 export async function initStore() {
   const savedSettings = await persist.get('settings');
   if (savedSettings) settings.set({ theme: 'dark', ...savedSettings });
 
   const savedTimer = await persist.get('timerState');
-  if (savedTimer) timerState.set({ activeTaskId: null, ...savedTimer });
+  if (savedTimer) timerState.set(normalizeTimerState({ activeTaskId: null, ...savedTimer }));
 
   const savedTasks = await persist.get('localTasks');
   if (savedTasks) localTasks.set(savedTasks.map(normalizeTask));
@@ -66,8 +129,10 @@ export async function persistSettings(s) {
 }
 
 export async function persistTimerState(ts) {
-  timerState.set(ts);
-  await persist.set('timerState', ts);
+  const next = normalizeTimerState(ts);
+  logTimerState('persistTimerState', next);
+  timerState.set(next);
+  await persist.set('timerState', next);
   await persist.save();
 }
 

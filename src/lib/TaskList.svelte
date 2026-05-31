@@ -1,9 +1,8 @@
 <script>
   import { onMount, onDestroy } from 'svelte';
-  import { get } from 'svelte/store';
-  import { localTasks, timerState, projects, settings, activeProjectTab, persistLocalTasks, persistTimerState, setError } from './store.js';
-  import { api } from './api.js';
-  import { fmtShort, taskTodayMs, taskTotalMs, todayDate, liveSessionMs } from './time.js';
+  import { localTasks, timerState, projects, activeProjectTab, persistLocalTasks, persistTimerState } from './store.js';
+  import { commitActiveSession, pauseTimer, startTask } from './timer-controller.js';
+  import { fmtShort, taskTodayMs, taskTotalMs } from './time.js';
 
   let newText = '';
   let showDone = false;
@@ -24,20 +23,44 @@
   onMount(() => { if ($timerState.status === 'running') startTicker(); });
   onDestroy(stopTicker);
 
-  // Select the first project tab once projects load; stay undefined until then
-  $: if ($activeProjectTab === undefined && $projects.length > 0) {
-    activeProjectTab.set($projects[0]._id);
-  }
-
   $: tabs = (() => {
-    const list = $projects.map(p => ({ id: p._id, name: p.name }));
+    const list = [];
+    const seen = new Set();
+
+    for (const project of $projects) {
+      if (seen.has(project._id)) continue;
+      seen.add(project._id);
+      list.push({ id: project._id, name: project.name });
+    }
+
+    for (const task of $localTasks) {
+      const projectId = task.projectId || null;
+      if (projectId === null || seen.has(projectId)) continue;
+      seen.add(projectId);
+      list.push({ id: projectId, name: task.projectName || 'Local project' });
+    }
+
     // Always offer an "Unassigned" tab so tasks without a project can still be added/viewed
     list.push({ id: null, name: 'Unassigned' });
     return list;
   })();
 
+  // Select the first real project tab once task/project data loads; defers if only Unassigned exists.
+  $: if ($activeProjectTab === undefined) {
+    const firstProject = tabs.find(t => t.id !== null);
+    if (firstProject) activeProjectTab.set(firstProject.id);
+  }
+
   $: filteredPending = $localTasks.filter(t => !t.done && (t.projectId || null) === ($activeProjectTab ?? null));
   $: filteredDone = $localTasks.filter(t => t.done && (t.projectId || null) === ($activeProjectTab ?? null));
+  $: activeTask = $localTasks.find(t => t.id === $timerState.activeTaskId) || null;
+
+  $: if ($timerState.status !== 'stopped' && activeTask) {
+    const activeTabId = activeTask.projectId || null;
+    if (($activeProjectTab ?? null) !== activeTabId) {
+      activeProjectTab.set(activeTabId);
+    }
+  }
 
   function uid() {
     return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -63,115 +86,19 @@
     newText = '';
   }
 
-  async function commitActiveSession({ sendEntry = false } = {}) {
-    const ts = $timerState;
-    if (ts.status === 'stopped' || !ts.activeTaskId) return 0;
-
-    const sessionMs = liveSessionMs(ts);
-    const { apiToken, baseUrl } = get(settings);
-
-    if (ts.status === 'running' && apiToken) {
-      try { await api.stopTimer(apiToken, baseUrl); } catch {}
-    }
-
-    if (sessionMs > 0) {
-      const date = todayDate();
-      const entry = { date, ms: sessionMs, endedAt: new Date().toISOString() };
-      const updated = $localTasks.map(t =>
-        t.id === ts.activeTaskId
-          ? { ...t, totalMs: (t.totalMs || 0) + sessionMs, sessions: [...(t.sessions || []), entry] }
-          : t
-      );
-      await persistLocalTasks(updated);
-
-      if (sendEntry && sessionMs >= 60000) {
-        const task = updated.find(t => t.id === ts.activeTaskId);
-        if (task?.projectId && apiToken) {
-          const hours = parseFloat((sessionMs / 3600000).toFixed(2));
-          try {
-            await api.createTimeEntry(apiToken, baseUrl, {
-              projectId: task.projectId,
-              task: task.text || 'Time entry from dr.titra',
-              date,
-              hours: Math.max(hours, 0.01),
-            });
-          } catch (e) {
-            setError(`Titra entry failed: ${e?.message || String(e)}`);
-          }
-        }
-      }
-    }
-
-    return sessionMs;
-  }
-
-  async function startTask(taskId) {
-    const { apiToken, baseUrl } = get(settings);
-    if (!apiToken) { setError('Add your API token in Settings first.'); return; }
-
-    const ts = $timerState;
-
-    if (ts.activeTaskId && ts.activeTaskId !== taskId && ts.status !== 'stopped') {
-      await commitActiveSession({ sendEntry: true });
-    }
-
-    try {
-      const res = await api.startTimer(apiToken, baseUrl);
-      const startTime = res?.payload?.startTime || new Date().toISOString();
-      await persistTimerState({
-        status: 'running',
-        startTime,
-        accumulatedMs: ts.activeTaskId === taskId ? (ts.accumulatedMs || 0) : 0,
-        activeTaskId: taskId,
-      });
-    } catch (e) {
-      setError(e?.message || String(e));
-    }
-  }
-
-  async function pauseActive() {
-    const { apiToken, baseUrl } = get(settings);
-    const ts = $timerState;
-    if (ts.status !== 'running') return;
-    try {
-      const live = ts.startTime ? Date.now() - new Date(ts.startTime).getTime() : 0;
-      let duration = live;
-      try {
-        const res = await api.stopTimer(apiToken, baseUrl);
-        duration = res?.payload?.duration ?? live;
-      } catch {}
-      await persistTimerState({
-        ...ts,
-        status: 'paused',
-        startTime: null,
-        accumulatedMs: (ts.accumulatedMs || 0) + duration,
-      });
-    } catch (e) {
-      setError(e?.message || String(e));
-    }
-  }
-
   async function toggleTask(taskId) {
     const ts = $timerState;
     if (ts.activeTaskId === taskId && ts.status === 'running') {
-      await pauseActive();
+      await pauseTimer();
     } else {
       await startTask(taskId);
     }
   }
 
   async function markDone(taskId) {
-    if ($timerState.activeTaskId === taskId && $timerState.status !== 'stopped') {
-      await commitActiveSession({ sendEntry: true });
-    }
-    const updated = $localTasks.map(t =>
-      t.id === taskId
-        ? { ...t, done: true, completedAt: new Date().toISOString() }
-        : t
-    );
-    await persistLocalTasks(updated);
-
-    if ($timerState.activeTaskId === taskId) {
+    const activeSnapshot = $timerState.activeTaskId === taskId ? $timerState : null;
+    if (activeSnapshot && activeSnapshot.status !== 'stopped') {
+      await commitActiveSession(activeSnapshot, { sendEntry: true });
       await persistTimerState({
         status: 'stopped',
         startTime: null,
@@ -179,6 +106,13 @@
         activeTaskId: null,
       });
     }
+
+    const updated = $localTasks.map(t =>
+      t.id === taskId
+        ? { ...t, done: true, completedAt: new Date().toISOString() }
+        : t
+    );
+    await persistLocalTasks(updated);
   }
 
   async function reopen(taskId) {
@@ -190,14 +124,6 @@
 
   function handleAddKeydown(e) {
     if (e.key === 'Enter') addTask();
-  }
-
-  function isActiveRunning(task) {
-    return task.id === $timerState.activeTaskId && $timerState.status === 'running';
-  }
-
-  function isActivePaused(task) {
-    return task.id === $timerState.activeTaskId && $timerState.status === 'paused';
   }
 
   function selectTab(id) {
@@ -236,12 +162,14 @@
       <li
         class="task"
         class:active={task.id === $timerState.activeTaskId}
-        class:running={isActiveRunning(task)}
+        class:running={task.id === $timerState.activeTaskId && $timerState.status === 'running' && !!$timerState.startTime}
+        class:paused={task.id === $timerState.activeTaskId && $timerState.status === 'paused'}
         on:dblclick={() => toggleTask(task.id)}
       >
         <button
           class="check"
           on:click|stopPropagation={() => markDone(task.id)}
+          on:dblclick|stopPropagation
           title="Mark as done"
           aria-label="Mark as done"
         ></button>
@@ -252,20 +180,22 @@
             <span class="time-total" title="Total">Σ {(now, fmtShort(taskTotalMs(task, $timerState)))}</span>
           </div>
         </div>
-        {#if isActiveRunning(task)}
+        {#if task.id === $timerState.activeTaskId && $timerState.status === 'running' && !!$timerState.startTime}
           <button
             class="play pause-btn"
-            on:click|stopPropagation={pauseActive}
+            on:click|stopPropagation={pauseTimer}
+            on:dblclick|stopPropagation
             title="Pause"
             aria-label="Pause"
           >⏸</button>
         {:else}
           <button
             class="play start-btn"
-            class:resume={isActivePaused(task)}
+            class:resume={task.id === $timerState.activeTaskId && $timerState.status === 'paused'}
             on:click|stopPropagation={() => startTask(task.id)}
-            title={isActivePaused(task) ? 'Resume' : 'Start'}
-            aria-label={isActivePaused(task) ? 'Resume' : 'Start'}
+            on:dblclick|stopPropagation
+            title={task.id === $timerState.activeTaskId && $timerState.status === 'paused' ? 'Resume' : 'Start'}
+            aria-label={task.id === $timerState.activeTaskId && $timerState.status === 'paused' ? 'Resume' : 'Start'}
           >▶</button>
         {/if}
       </li>
@@ -288,6 +218,7 @@
             <button
               class="check checked"
               on:click={() => reopen(task.id)}
+              on:dblclick|stopPropagation
               title="Reopen task"
               aria-label="Reopen task"
             >✓</button>
@@ -399,6 +330,11 @@
   .task.running {
     border-color: var(--green);
     background: color-mix(in srgb, var(--green) 10%, var(--surface));
+  }
+
+  .task.paused {
+    border-color: var(--yellow);
+    background: color-mix(in srgb, var(--yellow) 12%, var(--surface));
   }
 
   .check {

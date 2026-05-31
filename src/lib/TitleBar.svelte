@@ -10,6 +10,13 @@
   function showDashboard() { view.set('dashboard'); }
   function showSettings() { view.set('settings'); }
 
+  function handleBrandKeydown(event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      showWidget();
+    }
+  }
+
   async function enterMinimal() {
     try {
       await getCurrentWindow().setSize(new LogicalSize(360, 56));
@@ -21,7 +28,15 @@
 </script>
 
 <div class="titlebar" data-tauri-drag-region>
-  <div class="brand" data-tauri-drag-region on:dblclick={showWidget}>
+  <div
+    class="brand"
+    data-tauri-drag-region
+    on:dblclick={showWidget}
+    on:keydown={handleBrandKeydown}
+    role="button"
+    tabindex="0"
+    aria-label="Show tasks view"
+  >
     <span class="icon">⏱</span>
     <span class="name">dr.titra</span>
   </div>

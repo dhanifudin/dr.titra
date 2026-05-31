@@ -3,7 +3,7 @@
   import { get } from 'svelte/store';
   import { open } from '@tauri-apps/plugin-shell';
   import { settings, persistSettings, projects, view } from './store.js';
-  import { api } from './api.js';
+  import { api, normalizeBaseUrl } from './api.js';
 
   let token = '';
   let baseUrl = '';
@@ -15,19 +15,22 @@
   onMount(() => {
     const s = get(settings);
     token = s.apiToken;
-    baseUrl = s.baseUrl || 'https://titra.nusaraya.co.id';
+    baseUrl = s.baseUrl || '';
     theme = s.theme || 'dark';
   });
 
   async function save() {
     saving = true;
     try {
+      const cleanUrl = normalizeBaseUrl(baseUrl);
       await persistSettings({
         apiToken: token.trim(),
-        baseUrl: (baseUrl.trim() || 'https://titra.nusaraya.co.id').replace(/\/$/, ''),
+        baseUrl: cleanUrl,
         theme,
       });
       view.set('widget');
+    } catch (e) {
+      testResult = `✗ ${e?.message || String(e)}`;
     } finally {
       saving = false;
     }
@@ -40,6 +43,10 @@
   }
 
   async function testConnection() {
+    if (!baseUrl.trim()) {
+      testResult = '✗ Enter your Titra server URL first.';
+      return;
+    }
     if (!token.trim()) {
       testResult = '✗ Enter an API token first.';
       return;
@@ -47,9 +54,10 @@
     testing = true;
     testResult = '';
     try {
+      const cleanUrl = normalizeBaseUrl(baseUrl);
       const res = await api.listProjects(
         token.trim(),
-        (baseUrl.trim() || 'https://titra.nusaraya.co.id').replace(/\/$/, '')
+        cleanUrl
       );
       const list = res.payload || [];
       projects.set(list);
@@ -66,15 +74,32 @@
   }
 
   async function openTokenPage() {
-    const url = (baseUrl.trim() || 'https://titra.nusaraya.co.id').replace(/\/$/, '');
     try {
-      await open(`${url}/profilesettings`);
-    } catch {}
+      const url = normalizeBaseUrl(baseUrl);
+      await open(`${url}/settings`);
+    } catch (e) {
+      testResult = `✗ ${e?.message || String(e)}`;
+    }
   }
 </script>
 
 <div class="settings">
   <h2>Settings</h2>
+
+  <div class="form-group">
+    <label for="url">Server URL</label>
+    <input
+      id="url"
+      type="url"
+      bind:value={baseUrl}
+      placeholder="https://your-titra-server.example"
+      on:keydown={handleKeydown}
+    />
+    <button class="get-token-link" on:click={openTokenPage} type="button">
+      Get API token from titra ↗
+    </button>
+    <p class="field-hint">Open Settings, then go to Integrations, choose titra, and click Generate to create the required token.</p>
+  </div>
 
   <div class="form-group">
     <label for="token">API Token</label>
@@ -85,25 +110,11 @@
       placeholder="Paste your titra API token"
       on:keydown={handleKeydown}
     />
-    <button class="get-token-link" on:click={openTokenPage} type="button">
-      Get API token from titra ↗
-    </button>
   </div>
 
   <div class="form-group">
-    <label for="url">Server URL</label>
-    <input
-      id="url"
-      type="url"
-      bind:value={baseUrl}
-      placeholder="https://titra.nusaraya.co.id"
-      on:keydown={handleKeydown}
-    />
-  </div>
-
-  <div class="form-group">
-    <label>Theme</label>
-    <div class="theme-toggle">
+    <label for="theme-toggle">Theme</label>
+    <div class="theme-toggle" id="theme-toggle">
       <button
         class="theme-btn"
         class:active={theme === 'dark'}
@@ -178,6 +189,12 @@
   .get-token-link:hover:not(:disabled) {
     opacity: 0.75;
     background: transparent;
+  }
+
+  .field-hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    margin: 0;
   }
 
   .theme-toggle {

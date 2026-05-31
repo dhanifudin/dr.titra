@@ -12,7 +12,11 @@ const TRAY_SIZE: u32 = 32;
 
 #[tauri::command]
 fn set_tray_icon(app: tauri::AppHandle, status: String) {
-    let rgba: &[u8] = if status == "running" { TRAY_RUNNING } else { TRAY_IDLE };
+    let rgba: &[u8] = if status == "running" {
+        TRAY_RUNNING
+    } else {
+        TRAY_IDLE
+    };
     if let Some(tray) = app.tray_by_id("main") {
         let icon = Image::new(rgba, TRAY_SIZE, TRAY_SIZE);
         let _ = tray.set_icon(Some(icon));
@@ -41,7 +45,7 @@ pub fn run() {
 }
 
 fn setup_tray(app: &mut tauri::App) -> tauri::Result<()> {
-    let toggle = MenuItem::with_id(app, "toggle", "Show / Hide dr.titra", true, None::<&str>)?;
+    let toggle = MenuItem::with_id(app, "toggle", "Show / Hide", true, None::<&str>)?;
     let settings_item = MenuItem::with_id(app, "open-settings", "Settings", true, None::<&str>)?;
     let sep = PredefinedMenuItem::separator(app)?;
     let sep2 = PredefinedMenuItem::separator(app)?;

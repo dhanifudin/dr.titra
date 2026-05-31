@@ -1,7 +1,7 @@
 <script>
-  import { onMount, onDestroy } from 'svelte';
+  import { onDestroy } from 'svelte';
   import { get } from 'svelte/store';
-  import { settings, timerState, localTasks, projects, persistTimerState, setError, errorMsg } from './store.js';
+  import { settings, timerState, localTasks, projects, setError, errorMsg } from './store.js';
   import { api } from './api.js';
   import { fmtClock, fmtShort, totalTodayMs, liveSessionMs } from './time.js';
 
@@ -37,19 +37,6 @@
   }
 
   $: if ($settings.apiToken) loadProjects($settings.apiToken, $settings.baseUrl);
-
-  onMount(async () => {
-    if ($timerState.status === 'running') startTicker();
-
-    const { apiToken, baseUrl } = get(settings);
-    if ($timerState.status === 'running' && apiToken) {
-      try {
-        await api.getTimer(apiToken, baseUrl);
-      } catch {
-        await persistTimerState({ ...$timerState, status: 'paused', startTime: null });
-      }
-    }
-  });
 
   onDestroy(stopTicker);
 
