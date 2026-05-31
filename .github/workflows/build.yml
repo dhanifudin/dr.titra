@@ -1,15 +1,13 @@
-name: Release
+name: Build
 
 on:
   push:
-    tags:
-      - 'v*.*.*'
-  workflow_dispatch:
+    branches: [master]
+  pull_request:
+    branches: [master]
 
 jobs:
-  release:
-    permissions:
-      contents: write
+  build:
     strategy:
       fail-fast: false
       matrix:
@@ -62,27 +60,10 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
-      - name: Build and publish release
+      - name: Build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Override local rust-toolchain.toml (pinned to windows-gnu for dev) so
-          # CI uses each platform's native stable toolchain.
           RUSTUP_TOOLCHAIN: stable
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: 'dr.titra ${{ github.ref_name }}'
-          releaseBody: |
-            ## Installation
-
-            Download the file for your platform:
-
-            | Platform | Installer |
-            |----------|-----------|
-            | Windows | `.exe` (NSIS) or `.msi` |
-            | macOS Apple Silicon | `_aarch64.dmg` |
-            | macOS Intel | `_x64.dmg` |
-            | Linux | `.AppImage` or `.deb` |
-          releaseDraft: true
-          prerelease: false
           args: ${{ matrix.args }}
