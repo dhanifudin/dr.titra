@@ -11,7 +11,7 @@ append_path_if_dir() {
 
 case "$(uname -s)" in
   MINGW*|MSYS*|CYGWIN*)
-    append_path_if_dir "/c/Users/dhs/scoop/apps/mingw/current/bin"
+    # lld-link (LLVM) is the MSVC-compatible linker used by the stable toolchain
     append_path_if_dir "/c/Users/dhs/scoop/apps/llvm/current/bin"
     ;;
 esac

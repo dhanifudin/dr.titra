@@ -84,24 +84,17 @@ export async function startTask(taskId) {
 }
 
 export async function pauseTimer() {
-  const { apiToken, baseUrl } = get(settings);
   const snapshot = get(timerState);
   if (snapshot.status !== 'running') return;
 
-  const live = snapshot.startTime ? Date.now() - new Date(snapshot.startTime).getTime() : 0;
-  let duration = live;
-
-  try {
-    const response = await api.stopTimer(apiToken, baseUrl);
-    duration = response?.payload?.duration ?? live;
-  } catch {}
+  await commitActiveSession(snapshot, { sendEntry: true });
 
   try {
     await persistTimerState({
       ...snapshot,
       status: 'paused',
       startTime: null,
-      accumulatedMs: (snapshot.accumulatedMs || 0) + duration,
+      accumulatedMs: 0,
     });
   } catch (error) {
     setError(error?.message || String(error));

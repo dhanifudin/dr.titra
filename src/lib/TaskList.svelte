@@ -180,7 +180,7 @@
             <span class="time-total" title="Total">Σ {(now, fmtShort(taskTotalMs(task, $timerState)))}</span>
           </div>
         </div>
-        {#if task.id === $timerState.activeTaskId && $timerState.status === 'running' && !!$timerState.startTime}
+        {#if task.id === $timerState.activeTaskId && $timerState.status === 'running'}
           <button
             class="play pause-btn"
             on:click|stopPropagation={pauseTimer}
