@@ -14,6 +14,11 @@ case "$(uname -s)" in
     # lld-link (LLVM) is the MSVC-compatible linker used by the stable toolchain
     append_path_if_dir "/c/Users/dhs/scoop/apps/llvm/current/bin"
     ;;
+  Linux*)
+    # linuxdeploy AppImage bundles an old strip that can't parse newer ELF .relr.dyn sections
+    export APPIMAGE_EXTRACT_AND_RUN=1
+    export NO_STRIP=1
+    ;;
 esac
 
 exec npm run tauri dev "$@"
