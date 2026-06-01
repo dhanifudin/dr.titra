@@ -90,7 +90,7 @@ jobs:
           RUSTUP_TOOLCHAIN: stable
         with:
           tagName: ${{ github.ref_name }}
-          releaseName: 'dr.titra ${{ github.ref_name }}'
+          releaseName: 'Dr.titra ${{ github.ref_name }}'
           releaseBody: |
             ## Installation
 

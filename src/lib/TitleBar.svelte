@@ -38,7 +38,7 @@
     aria-label="Show tasks view"
   >
     <span class="icon">⏱</span>
-    <span class="name">dr.titra</span>
+    <span class="name">Dr.titra</span>
   </div>
   <div class="actions">
     <div class="nav">

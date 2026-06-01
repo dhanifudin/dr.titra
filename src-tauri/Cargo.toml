@@ -1,7 +1,7 @@
 [package]
 name = "dr-titra"
 version = "0.1.0"
-description = "dr.titra - Time tracking widget for titra.io"
+description = "Dr.titra - Time tracking widget for titra.io"
 authors = ["dhanifudin"]
 edition = "2021"
 rust-version = "1.77.2"

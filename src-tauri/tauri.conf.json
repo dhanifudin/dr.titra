@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "dr-titra",
+  "productName": "Dr.titra",
   "version": "0.1.0",
   "identifier": "com.dhanifudin.dr-titra",
   "build": {
@@ -13,7 +13,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "dr.titra",
+        "title": "Dr.titra",
         "width": 360,
         "height": 540,
         "resizable": false,

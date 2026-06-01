@@ -1,4 +1,4 @@
-# dr.titra
+# Dr.titra
 
 A lightweight desktop time tracking widget that integrates with your [Titra](https://github.com/kromitgmbh/titra) server.
 

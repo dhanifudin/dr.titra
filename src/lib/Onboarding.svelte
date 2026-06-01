@@ -49,7 +49,7 @@
 <div class="onboarding">
   <div class="hero">
     <span class="hero-icon">⏱</span>
-    <h1>Welcome to dr.titra</h1>
+    <h1>Welcome to Dr.titra</h1>
     <p class="tagline">Connect your titra account to start tracking time.</p>
   </div>
 

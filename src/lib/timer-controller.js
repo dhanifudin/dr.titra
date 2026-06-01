@@ -40,7 +40,7 @@ export async function commitActiveSession(snapshot = get(timerState), { sendEntr
       try {
         await api.createTimeEntry(apiToken, baseUrl, {
           projectId: task.projectId,
-          task: task.text || 'Time entry from dr.titra',
+          task: task.text || 'Time entry from Dr.titra',
           date,
           hours: Math.max(hours, 0.01),
         });

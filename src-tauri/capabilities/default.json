@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Default capabilities for dr.titra widget",
+  "description": "Default capabilities for Dr.titra widget",
   "windows": ["main"],
   "permissions": [
     "core:default",
